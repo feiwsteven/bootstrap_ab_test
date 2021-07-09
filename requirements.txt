@@ -1,0 +1,6 @@
+numpy~=1.20.3
+loguru~=0.5.3
+rpy2~=3.4.5
+setuptools~=57.0.0
+scipy~=1.6.3
+matplotlib~=3.4.2
