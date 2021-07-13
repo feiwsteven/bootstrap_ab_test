@@ -65,13 +65,26 @@ class BootstrapAncova:
 
             i += 1
 
+
         self.g = self.design.T.dot(self.y - self.design.dot(self.beta)) / self.n
-        self.gmm = self.g.dot(np.linalg.inv(self.design.T.dot(self.design) /
-                                            self.n)).dot(self.g) * self.n / (
-                               self.residual[self.treatment == 0].var()
-                               * (1 - self.pi) \
-                               + self.residual[
-                                   self.treatment == 1].var() * self.pi)
+
+        self.sn = self.design[self.treatment==1,].T.dot(self.design[
+                                                           self.treatment==1,
+                                                        ]) / self. n * \
+                  self.residual[self.treatment == 1].var() + self.design[self.treatment==0,].T.dot(self.design[
+                                                           self.treatment==0,
+                                                        ]) / self. n * \
+                  self.residual[self.treatment == 0].var()
+
+        self.xtx = self.design.T.dot(self.design) / self. n
+        # variance of GMM estimator is
+        # \sqrt n (\hat \beta - \beta_0) -> N(0, (G W G^T)^{-1})
+        # G = \partial \bar g(beta)^T / \partial \beta
+        self.variance = np.linalg.inv(self.xtx.dot(np.linalg.inv(self.sn)).dot(
+            self.xtx)).diagonal() / self. n
+
+
+        self.gmm = self.g.dot(np.linalg.inv(self.sn)).dot(self.g) * self.n
 
         i = 0
         while i < self.maxiter:
@@ -91,12 +104,19 @@ class BootstrapAncova:
 
         self.g_h0 = self.design_h0.T.dot(self.y - self.design_h0.dot(
             self.beta_h0)) / self.n
-        self.gmm_h0 = self.n * self.g_h0.dot(np.linalg.inv(self.design_h0.T.dot(
-            self.design_h0) / self.n)).dot(self.g_h0) / (self.residual[
-                                                             self.treatment == 0].var()
-                                                         * (1 - self.pi) \
-                                                         + self.residual[
-                                                             self.treatment == 1].var() * self.pi)
+
+        self.sn_h0 = self.design_h0[self.treatment==1,].T.dot(self.design_h0[
+                                                           self.treatment==1,
+                                                        ]) / self. n * \
+                  self.residual[self.treatment == 1].var() + self.design_h0[
+                         self.treatment==0,].T.dot(self.design_h0[
+                                                           self.treatment==0,
+                                                        ]) / self. n * \
+                  self.residual[self.treatment == 0].var()
+
+
+        self.gmm_h0 = self.n * self.g_h0.dot(np.linalg.inv(
+            self.sn_h0)).dot(self.g_h0)
 
         self.lr = self.gmm_h0 - self.gmm
 
@@ -107,16 +127,18 @@ if __name__ == '__main__':
     nrep = 5000
     beta = np.zeros((nrep, 6))
     lr = np.zeros(nrep)
+    variance = np.zeros((nrep, 6))
     n = 400
     for i in range(nrep):
         x = np.random.normal(0, 1, 4 * n).reshape((n, -1))
         treatment = np.random.binomial(1, 0.5, n)
-        y = 1 + treatment * 0.0 + x.dot([1,2,3,4]) + np.random.normal(0, 0.5, n)
+        y = 1 + treatment * 0 + x.dot([1,2,3,4]) + np.random.normal(0, 0.5, n)
 
         model = BootstrapAncova(x, y, treatment, 5)
         model.fit()
         beta[i,] = model.beta
         lr[i] = model.lr
+        variance[i,] = model.variance
 
     plt.figure()
     plt.hist(beta[:, 1], bins=50)
@@ -125,4 +147,3 @@ if __name__ == '__main__':
 
     plt.hist(lr, bins=50)
     plt.show()
-    print(sum(lr > chi2.ppf(0.95, df=1)))
