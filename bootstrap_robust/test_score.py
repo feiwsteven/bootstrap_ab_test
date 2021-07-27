@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from loguru import logger
 from src.bootstraptest_ancova import BootstrapAncova
+from scipy.stats import probplot
 
 from scipy.stats import norm, chi2, ttest_ind
 
@@ -12,14 +13,14 @@ if __name__ == '__main__':
     lr = np.zeros(nrep)
     score = np.zeros(nrep)
     variance = np.zeros((nrep, 5))
-    n = 4000
+    n = 5000
     np.random.seed(10)
     pv = np.zeros(nrep)
     pv_cv = np.zeros(nrep)
 
     n_treat = 3
-    effect = [0, 0.0, 0.5]
-    var = [0.2, 0.7, 1]
+    effect = [0, 0.0, 0.0]
+    var = [0.2, 0.7, 0.3]
     beta = np.zeros((nrep, 3 + n_treat))
 
     variance = np.zeros((nrep, 3 + n_treat))
@@ -36,13 +37,14 @@ if __name__ == '__main__':
             y[treatment == j] = 1 + effect[j] + x[treatment == j,].dot([1, 2, 3,
                                                                         4]) + epsilon
 
-        logger.info(y.var())
+        if i % 500 == 0:
+            logger.info(i)
 
         # change parameter_h0 according to H_0
         parameter_h0 = [0, 1, 2, 3]
         model = BootstrapAncova(x[:, :3], y, treatment, 5, parameter_h0)
         model.fit()
-        model.cuped()
+        model.cuped([1])
         y_cv = model.y_cv
         beta[i,] = model.beta
         lr[i] = model.lr
@@ -66,6 +68,8 @@ if __name__ == '__main__':
     axs[3].hist(pv, bins=50, alpha=0.5)
     axs[4].hist(pv_cv, bins=50, alpha=0.5)
 
+    plt.show()
+    probplot(score, dist=chi2, sparams=2, plot=plt)
     plt.show()
     logger.info(f"pv={np.sum(pv < 0.05) / nrep}, pv_cv="
                 f"{np.sum(pv_cv < 0.05) / nrep}, score="
