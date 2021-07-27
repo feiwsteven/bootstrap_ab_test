@@ -12,14 +12,14 @@ if __name__ == '__main__':
     lr = np.zeros(nrep)
     score = np.zeros(nrep)
     variance = np.zeros((nrep, 5))
-    n = 400
+    n = 4000
     np.random.seed(10)
     pv = np.zeros(nrep)
     pv_cv = np.zeros(nrep)
 
     n_treat = 3
-    effect = [0, 0.0, 0.3]
-    var = [0.2, 0.2, 0.2]
+    effect = [0, 0.0, 0.5]
+    var = [0.2, 0.7, 1]
     beta = np.zeros((nrep, 3 + n_treat))
 
     variance = np.zeros((nrep, 3 + n_treat))
@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
         y = np.zeros(n)
         for j in range(3):
-            epsilon = np.random.normal(0, var[j], np.sum(treatment == j))
+            epsilon = np.random.lognormal(0, var[j], np.sum(treatment == j))
             epsilon = epsilon - epsilon.mean()
 
             y[treatment == j] = 1 + effect[j] + x[treatment == j,].dot([1, 2, 3,
@@ -38,7 +38,9 @@ if __name__ == '__main__':
 
         logger.info(y.var())
 
-        model = BootstrapAncova(x[:, :3], y, treatment, 5)
+        # change parameter_h0 according to H_0
+        parameter_h0 = [0, 1, 2, 3]
+        model = BootstrapAncova(x[:, :3], y, treatment, 5, parameter_h0)
         model.fit()
         model.cuped()
         y_cv = model.y_cv

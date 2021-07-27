@@ -2,6 +2,7 @@
 Score test for ANCOVA model
 """
 import numpy as np
+from typing import List
 from loguru import logger
 
 __version__ = '0.1'
@@ -9,7 +10,7 @@ __version__ = '0.1'
 
 class BootstrapAncova:
     def __init__(self, x: np.ndarray, y: np.ndarray, treatment: np.ndarray,
-                 maxiter: int):
+                 maxiter: int, parameter_h0: List):
         self.x = x
         self.y = y
         self.treatment = treatment
@@ -39,6 +40,7 @@ class BootstrapAncova:
         self.inv_variance_h0 = np.ones(self.n)
         self.residual = np.ones(self.n)
         self.residual_h0 = np.ones(self.n)
+        self.parameter_h0 = parameter_h0
 
     def fit(self, method='OLS'):
         """
@@ -92,28 +94,41 @@ class BootstrapAncova:
             i += 1
 
         self.beta_h0 = np.zeros(self.design.shape[1])
-        # TODO repalce x.shape[1] + 1 to the number of covariates.
-        self.beta_h0[:(self.x.shape[1] + 1)] = beta_h0
+        self.beta_h0[self.parameter_h0] = beta_h0
+
 
         self.g_h0 = design_weight.T.dot(
             self.y - self.design.dot(self.beta_h0)) / \
                     self.n
 
-        self.v_h0 = design_weight * (self.y - self.design.dot(
+        self.residual_h0 = (self.y - self.design.dot(
             self.beta_h0)).reshape((-1, 1))
-        self.v_h0 = self.v_h0.T.dot(self.v_h0) / self.n
+        self.Omega_h0 = (design_weight * self.residual_h0).T.dot(design_weight *
+                                                             self.residual_h0) / self.n
+
 
         self.d_g_h0 = -design_weight.T.dot(self.design) / self.n
 
-        self.gmm_h0 = self.n * self.g_h0.dot(self.w).dot(self.g_h0)
-
-        self.d_gmm_h0 = self.d_g_h0.dot(self.w).dot(self.g_h0)
-
-        self.gwg = self.d_g_h0.dot(self.w.dot(self.v_h0).dot(self.w)).dot(
+        self.Sigma_h0 = self.d_g_h0.dot(np.linalg.inv(self.Omega_h0)).dot(
             self.d_g_h0.T)
 
+        #self.gmm_h0 = self.n * self.g_h0.dot(self.w).dot(self.g_h0)
+
+        self.gmm_h0 = self.n * self.g_h0.dot(np.linalg.inv(self.Omega_h0)).dot(
+            self.g_h0)
+
+        self.d_gmm_h0 = self.d_g_h0.dot(np.linalg.inv(self.Omega_h0)).dot(self.g_h0)
+
+
+        #self.gwg = self.d_g_h0.dot(self.w.dot(self.v_h0).dot(self.w)).dot(
+        #    self.d_g_h0.T)
+
+
+        #self.score = self.d_gmm_h0.T.dot(np.linalg.inv(
+        #    self.gwg)).dot(self.d_gmm_h0) * self.n
+
         self.score = self.d_gmm_h0.T.dot(np.linalg.inv(
-            self.gwg)).dot(self.d_gmm_h0) * self.n
+            self.Sigma_h0)).dot(self.d_gmm_h0) * self.n
 
         self.lr = self.gmm_h0 - self.gmm
 
