@@ -132,11 +132,12 @@ class BootstrapAncova:
 
         self.lr = self.gmm_h0 - self.gmm
 
-        logger.info(f"lr={self.lr}, score={self.score}")
+        #logger.info(f"lr={self.lr}, score={self.score}")
 
-    def cuped(self):
-        self.theta = np.linalg.solve(self.design_h0[:, [0, 3]].T.dot(
-            self.design_h0[:, [0, 3]]),
-            self.design_h0[:, [0, 3]].T.dot(self.y))
+    def cuped(self, adjusted_covariate: List):
+        adjusted_covariate = [0] + adjusted_covariate
+        self.theta = np.linalg.solve(self.design_h0[:, adjusted_covariate].T.dot(
+            self.design_h0[:, adjusted_covariate]),
+            self.design_h0[:, adjusted_covariate].T.dot(self.y))
 
-        self.y_cv = self.y - self.design_h0[:, [0, 3]].dot(self.theta)
+        self.y_cv = self.y - self.design_h0[:, adjusted_covariate].dot(self.theta)
