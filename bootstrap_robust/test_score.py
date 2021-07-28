@@ -19,22 +19,26 @@ if __name__ == '__main__':
     pv_cv = np.zeros(nrep)
 
     n_treat = 3
-    effect = [0, 0.0, 0.0]
-    var = [0.2, 0.7, 0.3]
+    pi = [1/2, 1/4, 1/4]
+    effect = [0, 0.3, 0.0]
+    var = [0.2, 0.7, 0.8]
     beta = np.zeros((nrep, 3 + n_treat))
 
     variance = np.zeros((nrep, 3 + n_treat))
 
     for i in range(nrep):
         x = np.random.normal(10, 1, 4 * n).reshape((n, -1))
-        treatment = np.random.uniform(0, 2, n).round().astype(int)
+        #treatment = np.random.uniform(0, 2, n).round().astype(int)
+
+        treatment = np.random.multinomial(n_treat - 1, pi, size=n)[:,0]
 
         y = np.zeros(n)
         for j in range(3):
-            epsilon = np.random.lognormal(0, var[j], np.sum(treatment == j))
+            epsilon = np.random.normal(0, var[j], np.sum(treatment == j))
             epsilon = epsilon - epsilon.mean()
 
-            y[treatment == j] = 1 + effect[j] + x[treatment == j,].dot([1, 2, 3,
+            y[treatment == j] = 1 + effect[j] + (x[treatment == j,]).dot(
+            [1, 2, 3,
                                                                         4]) + epsilon
 
         if i % 500 == 0:
