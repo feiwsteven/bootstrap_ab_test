@@ -141,3 +141,8 @@ class BootstrapAncova:
             self.design_h0[:, adjusted_covariate].T.dot(self.y))
 
         self.y_cv = self.y - self.design_h0[:, adjusted_covariate].dot(self.theta)
+
+
+    def l_none_screen(self):
+        pass
+
