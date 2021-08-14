@@ -9,6 +9,9 @@ __version__ = '0.1'
 
 
 class CovariateAdjustedAncova:
+    """
+    Class for GMM score test for ANCOVA model
+    """
     def __init__(self, x_mat: np.ndarray, y_vec: np.ndarray, treatment:
     np.ndarray,
                  maxiter: int, parameter_h0: List):
@@ -18,7 +21,7 @@ class CovariateAdjustedAncova:
         self.sample_size = y_vec.shape[0]
         self.maxiter = maxiter
 
-        self.pi = self.treatment.sum() / self.sample_size
+        self.pi_parameter = self.treatment.sum() / self.sample_size
 
         self.x_centered = self.x - self.x.mean(axis=0)
         self.y_centered = self.y_vec - self.y_vec.mean(axis=0)
@@ -45,14 +48,14 @@ class CovariateAdjustedAncova:
 
         self.y_cv = None
 
-        self.g = None
-        self.d_g = None
-        self.v = None
-        self.w = None
+        self.g_score = None
+        self.d_g_score = None
+        self.v_mat = None
+        self.w_mat = None
         self.variance = None
         self.gmm = None
 
-        self.g_h0 = None
+        self.g_score_h0 = None
         self.gmm_h0 = None
         self.d_gmm_h0 = None
         self.score = None
@@ -82,21 +85,21 @@ class CovariateAdjustedAncova:
             i += 1
 
         design_weight = self.design * self.inv_variance.reshape((-1, 1))
-        self.g = (design_weight).T.dot(self.y_vec - self.design.dot(
+        self.g_score = (design_weight).T.dot(self.y_vec - self.design.dot(
             self.beta)) / self.sample_size
-        self.d_g = - design_weight.T.dot(self.design) / self.sample_size
+        self.d_g_score = - design_weight.T.dot(self.design) / self.sample_size
 
-        self.v = design_weight.T.dot(self.design) / self.sample_size
+        self.v_mat = design_weight.T.dot(self.design) / self.sample_size
 
         # variance of GMM estimator is
         # \sqrt n (\hat \beta - \beta_0) -> N(0, (G W G^T)^{-1})
         # G = \partial \bar g(beta)^T / \partial \beta
 
-        self.w = np.linalg.inv(self.v)
-        self.variance = np.linalg.inv(self.d_g.dot(self.w).dot(
-            self.d_g.T)).diagonal() / self.sample_size
+        self.w_mat = np.linalg.inv(self.v_mat)
+        self.variance = np.linalg.inv(self.d_g_score.dot(self.w_mat).dot(
+            self.d_g_score.T)).diagonal() / self.sample_size
 
-        self.gmm = self.g.dot(self.w).dot(self.g) * self.sample_size
+        self.gmm = self.g_score.dot(self.w_mat).dot(self.g_score) * self.sample_size
 
         # under the H_0
         i = 0
@@ -112,9 +115,9 @@ class CovariateAdjustedAncova:
         self.beta_h0 = np.zeros(self.design.shape[1])
         self.beta_h0[self.parameter_h0] = beta_h0
 
-        self.g_h0 = design_weight.T.dot(
+        self.g_score_h0 = design_weight.T.dot(
             self.y_vec - self.design.dot(self.beta_h0)) / \
-                    self.sample_size
+                          self.sample_size
 
         self.residual_h0 = (self.y_vec - self.design.dot(
             self.beta_h0)).reshape((-1, 1))
@@ -128,10 +131,10 @@ class CovariateAdjustedAncova:
 
         # self.gmm_h0 = self.n * self.g_h0.dot(self.w).dot(self.g_h0)
 
-        gmm_h0 = self.sample_size * self.g_h0.dot(np.linalg.inv(omega_h0)).dot(
-            self.g_h0)
+        gmm_h0 = self.sample_size * self.g_score_h0.dot(np.linalg.inv(omega_h0)).dot(
+            self.g_score_h0)
 
-        d_gmm_h0 = d_g_h0.dot(np.linalg.inv(omega_h0)).dot(self.g_h0)
+        d_gmm_h0 = d_g_h0.dot(np.linalg.inv(omega_h0)).dot(self.g_score_h0)
 
         self.score = d_gmm_h0.T.dot(np.linalg.inv(
             sigma_h0)).dot(d_gmm_h0) * self.sample_size
