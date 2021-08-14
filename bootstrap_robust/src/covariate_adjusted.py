@@ -1,46 +1,62 @@
 """
-Score test for ANCOVA model
+GMM Score test for ANCOVA model
 """
-import numpy as np
 from typing import List
-from loguru import logger
+
+import numpy as np
 
 __version__ = '0.1'
 
 
-class BootstrapAncova:
-    def __init__(self, x: np.ndarray, y: np.ndarray, treatment: np.ndarray,
+class CovariateAdjustedAncova:
+    def __init__(self, x_mat: np.ndarray, y_vec: np.ndarray, treatment:
+    np.ndarray,
                  maxiter: int, parameter_h0: List):
-        self.x = x
-        self.y = y
+        self.x_mat = x_mat
+        self.y_vec = y_vec
         self.treatment = treatment
-        self.n = y.shape[0]
+        self.sample_size = y_vec.shape[0]
         self.maxiter = maxiter
 
-        self.pi = self.treatment.sum() / self.n
+        self.pi = self.treatment.sum() / self.sample_size
 
         self.x_centered = self.x - self.x.mean(axis=0)
-        self.y_centered = self.y - self.y.mean(axis=0)
+        self.y_centered = self.y_vec - self.y_vec.mean(axis=0)
 
-        treatment_code = np.zeros((self.n, np.unique(treatment).shape[0]))
-        treatment_code[np.arange(self.n), self.treatment] = 1
+        treatment_code = np.zeros((self.sample_size, np.unique(treatment).shape[0]))
+        treatment_code[np.arange(self.sample_size), self.treatment] = 1
 
-        self.design = np.concatenate((np.ones((self.n, 1)),
+        self.design = np.concatenate((np.ones((self.sample_size, 1)),
                                       self.x,
                                       treatment_code[:, 1:]),
                                      axis=1)
 
-        self.design_h0 = np.concatenate((np.ones((self.n, 1)),
+        self.design_h0 = np.concatenate((np.ones((self.sample_size, 1)),
                                          self.x),
                                         axis=1)
 
         self.beta = np.zeros(self.design.shape[1])
         self.beta_h0 = np.zeros(self.design.shape[1])
-        self.inv_variance = np.ones(self.n)
-        self.inv_variance_h0 = np.ones(self.n)
-        self.residual = np.ones(self.n)
-        self.residual_h0 = np.ones(self.n)
+        self.inv_variance = np.ones(self.sample_size)
+        self.inv_variance_h0 = np.ones(self.sample_size)
+        self.residual = np.ones(self.sample_size)
+        self.residual_h0 = np.ones(self.sample_size)
         self.parameter_h0 = parameter_h0
+
+        self.y_cv = None
+
+        self.g = None
+        self.d_g = None
+        self.v = None
+        self.w = None
+        self.variance = None
+        self.gmm = None
+
+        self.g_h0 = None
+        self.gmm_h0 = None
+        self.d_gmm_h0 = None
+        self.score = None
+        self.likelihood_ratio = None
 
     def fit(self, method='OLS'):
         """
@@ -55,9 +71,9 @@ class BootstrapAncova:
                 np.multiply(self.inv_variance.reshape((-1, 1)), self.design)
             ),
                 self.design.T.dot(self.inv_variance *
-                                  self.y))
+                                  self.y_vec))
 
-            self.residual = self.y - self.design.dot(self.beta)
+            self.residual = self.y_vec - self.design.dot(self.beta)
 
             for j in np.unique(self.treatment):
                 self.inv_variance[self.treatment == j] = 1 / self.residual[
@@ -66,11 +82,11 @@ class BootstrapAncova:
             i += 1
 
         design_weight = self.design * self.inv_variance.reshape((-1, 1))
-        self.g = (design_weight).T.dot(self.y - self.design.dot(
-            self.beta)) / self.n
-        self.d_g = - design_weight.T.dot(self.design) / self.n
+        self.g = (design_weight).T.dot(self.y_vec - self.design.dot(
+            self.beta)) / self.sample_size
+        self.d_g = - design_weight.T.dot(self.design) / self.sample_size
 
-        self.v = design_weight.T.dot(self.design) / self.n
+        self.v = design_weight.T.dot(self.design) / self.sample_size
 
         # variance of GMM estimator is
         # \sqrt n (\hat \beta - \beta_0) -> N(0, (G W G^T)^{-1})
@@ -78,9 +94,9 @@ class BootstrapAncova:
 
         self.w = np.linalg.inv(self.v)
         self.variance = np.linalg.inv(self.d_g.dot(self.w).dot(
-            self.d_g.T)).diagonal() / self.n
+            self.d_g.T)).diagonal() / self.sample_size
 
-        self.gmm = self.g.dot(self.w).dot(self.g) * self.n
+        self.gmm = self.g.dot(self.w).dot(self.g) * self.sample_size
 
         # under the H_0
         i = 0
@@ -89,60 +105,57 @@ class BootstrapAncova:
                 np.multiply(self.inv_variance.reshape((-1, 1)), self.design_h0)
             ),
                 self.design_h0.T.dot(self.inv_variance *
-                                     self.y))
+                                     self.y_vec))
 
             i += 1
 
         self.beta_h0 = np.zeros(self.design.shape[1])
         self.beta_h0[self.parameter_h0] = beta_h0
 
-
         self.g_h0 = design_weight.T.dot(
-            self.y - self.design.dot(self.beta_h0)) / \
-                    self.n
+            self.y_vec - self.design.dot(self.beta_h0)) / \
+                    self.sample_size
 
-        self.residual_h0 = (self.y - self.design.dot(
+        self.residual_h0 = (self.y_vec - self.design.dot(
             self.beta_h0)).reshape((-1, 1))
-        self.Omega_h0 = (design_weight * self.residual_h0).T.dot(design_weight *
-                                                             self.residual_h0) / self.n
+        omega_h0 = (design_weight * self.residual_h0).T.dot(design_weight *
+                                                            self.residual_h0) / self.sample_size
 
+        d_g_h0 = -design_weight.T.dot(self.design) / self.sample_size
 
-        self.d_g_h0 = -design_weight.T.dot(self.design) / self.n
+        sigma_h0 = d_g_h0.dot(np.linalg.inv(omega_h0)).dot(
+            d_g_h0.T)
 
-        self.Sigma_h0 = self.d_g_h0.dot(np.linalg.inv(self.Omega_h0)).dot(
-            self.d_g_h0.T)
+        # self.gmm_h0 = self.n * self.g_h0.dot(self.w).dot(self.g_h0)
 
-        #self.gmm_h0 = self.n * self.g_h0.dot(self.w).dot(self.g_h0)
-
-        self.gmm_h0 = self.n * self.g_h0.dot(np.linalg.inv(self.Omega_h0)).dot(
+        gmm_h0 = self.sample_size * self.g_h0.dot(np.linalg.inv(omega_h0)).dot(
             self.g_h0)
 
-        self.d_gmm_h0 = self.d_g_h0.dot(np.linalg.inv(self.Omega_h0)).dot(self.g_h0)
+        d_gmm_h0 = d_g_h0.dot(np.linalg.inv(omega_h0)).dot(self.g_h0)
 
+        self.score = d_gmm_h0.T.dot(np.linalg.inv(
+            sigma_h0)).dot(d_gmm_h0) * self.sample_size
 
-        #self.gwg = self.d_g_h0.dot(self.w.dot(self.v_h0).dot(self.w)).dot(
-        #    self.d_g_h0.T)
-
-
-        #self.score = self.d_gmm_h0.T.dot(np.linalg.inv(
-        #    self.gwg)).dot(self.d_gmm_h0) * self.n
-
-        self.score = self.d_gmm_h0.T.dot(np.linalg.inv(
-            self.Sigma_h0)).dot(self.d_gmm_h0) * self.n
-
-        self.lr = self.gmm_h0 - self.gmm
-
-        #logger.info(f"lr={self.lr}, score={self.score}")
+        self.likelihood_ratio = gmm_h0 - self.gmm
 
     def cuped(self, adjusted_covariate: List):
+        """
+        variance reduction by CUPED method
+        :param adjusted_covariate:
+        :return:
+        """
         adjusted_covariate = [0] + adjusted_covariate
-        self.theta = np.linalg.solve(self.design_h0[:, adjusted_covariate].T.dot(
-            self.design_h0[:, adjusted_covariate]),
-            self.design_h0[:, adjusted_covariate].T.dot(self.y))
+        theta = np.linalg.solve(
+            self.design_h0[:, adjusted_covariate].T.dot(
+                self.design_h0[:, adjusted_covariate]),
+            self.design_h0[:, adjusted_covariate].T.dot(self.y_vec))
 
-        self.y_cv = self.y - self.design_h0[:, adjusted_covariate].dot(self.theta)
-
+        self.y_cv = self.y_vec - self.design_h0[:, adjusted_covariate].dot(
+            theta)
 
     def l_none_screen(self):
+        """
+        select relevant covariates using L_0 penalty
+        :return:
+        """
         pass
-
