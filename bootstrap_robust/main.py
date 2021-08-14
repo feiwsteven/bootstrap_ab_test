@@ -1,5 +1,5 @@
 """
-
+A simulation study to test the bootstrap procedure.
 """
 import matplotlib.pyplot as plt
 import numpy as np

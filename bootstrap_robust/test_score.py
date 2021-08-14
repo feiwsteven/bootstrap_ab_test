@@ -1,38 +1,41 @@
+"""
+A simulation study to compare T-test and GMM test under several different
+specifications.
+"""
 import matplotlib.pyplot as plt
 import numpy as np
 from loguru import logger
-from src.bootstraptest_ancova import BootstrapAncova
+from src.covariate_adjusted import CovariateAdjustedAncova
 from scipy.stats import probplot
 
 from scipy.stats import norm, chi2, ttest_ind
 
 if __name__ == '__main__':
-    nrep = 5000
+    N_REP = 5000
 
-    beta_cv = np.zeros((nrep, 1))
-    lr = np.zeros(nrep)
-    score = np.zeros(nrep)
-    variance = np.zeros((nrep, 5))
-    n = 5000
+    beta_cv = np.zeros((N_REP, 1))
+    lr = np.zeros(N_REP)
+    score = np.zeros(N_REP)
+    variance = np.zeros((N_REP, 5))
+    N = 5000
     np.random.seed(10)
-    pv = np.zeros(nrep)
-    pv_cv = np.zeros(nrep)
+    pv = np.zeros(N_REP)
+    pv_cv = np.zeros(N_REP)
 
-    n_treat = 3
+    N_TREATMENT = 3
     pi = [1/2, 1/4, 1/4]
     effect = [0, 0.3, 0.0]
     var = [0.2, 0.7, 0.8]
-    beta = np.zeros((nrep, 3 + n_treat))
+    beta = np.zeros((N_REP, 3 + N_TREATMENT))
 
-    variance = np.zeros((nrep, 3 + n_treat))
+    variance = np.zeros((N_REP, 3 + N_TREATMENT))
 
-    for i in range(nrep):
-        x = np.random.normal(10, 1, 4 * n).reshape((n, -1))
-        #treatment = np.random.uniform(0, 2, n).round().astype(int)
+    for i in range(N_REP):
+        x = np.random.normal(10, 1, 4 * N).reshape((N, -1))
 
-        treatment = np.random.multinomial(n_treat - 1, pi, size=n)[:,0]
+        treatment = np.random.multinomial(N_TREATMENT - 1, pi, size=N)[:, 0]
 
-        y = np.zeros(n)
+        y = np.zeros(N)
         for j in range(3):
             epsilon = np.random.normal(0, var[j], np.sum(treatment == j))
             epsilon = epsilon - epsilon.mean()
@@ -46,12 +49,12 @@ if __name__ == '__main__':
 
         # change parameter_h0 according to H_0
         parameter_h0 = [0, 1, 2, 3]
-        model = BootstrapAncova(x[:, :3], y, treatment, 5, parameter_h0)
+        model = CovariateAdjustedAncova(x[:, :3], y, treatment, 5, parameter_h0)
         model.fit()
         model.cuped([1])
         y_cv = model.y_cv
         beta[i,] = model.beta
-        lr[i] = model.lr
+        lr[i] = model.likelihood_ratio
         score[i] = model.score
         variance[i,] = model.variance
         pv[i] = ttest_ind(y[treatment == 0], y[treatment == 2],
@@ -75,7 +78,7 @@ if __name__ == '__main__':
     plt.show()
     probplot(score, dist=chi2, sparams=2, plot=plt)
     plt.show()
-    logger.info(f"pv={np.sum(pv < 0.05) / nrep}, pv_cv="
-                f"{np.sum(pv_cv < 0.05) / nrep}, score="
-                f"{np.sum(score > chi2.ppf(0.95, df=2)) / nrep}, lr"
-                f"={np.sum(lr > chi2.ppf(0.95, df=2)) / nrep}")
+    logger.info(f"pv={np.sum(pv < 0.05) / N_REP}, pv_cv="
+                f"{np.sum(pv_cv < 0.05) / N_REP}, score="
+                f"{np.sum(score > chi2.ppf(0.95, df=2)) / N_REP}, lr"
+                f"={np.sum(lr > chi2.ppf(0.95, df=2)) / N_REP}")

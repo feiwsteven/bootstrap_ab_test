@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import norm
-import bootstrap_robust.src.stat_func as sf
-import bootstrap_robust.src.test_func as tf
+import src.stat_func as sf
+import src.test_func as tf
 
 __version__ = '0.1'
 
