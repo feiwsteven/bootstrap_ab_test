@@ -812,10 +812,7 @@ def test_pvalue(cdg: ClinicalDataGenerator,
                 pvalues[i] = p_lr
         
         if 'TAB_CUPED' == test:
-#             pvalues[i], flag, m = TAB_CUPED(XAA, YAA, X, Y, [n_samples_c, *n_samples_t], max_m, lam)
-            pvalues[i], flag, m = TAB_CUPED(np.column_stack([YAA,XAA]),
-                                            YAA, np.column_stack([Y,X]), 
-                                            Y, [n_samples_c, *n_samples_t], max_m, lam)
+            pvalues[i], flag, m = TAB_CUPED(XAA, YAA, X, Y, [n_samples_c, *n_samples_t], max_m, lam)
 
     return pvalues, flag, m
 
