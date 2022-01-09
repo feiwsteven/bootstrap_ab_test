@@ -1447,20 +1447,6 @@ for i,n_noise in enumerate(tqdm(n_noise_list)):
             pool.close()
             pool.join()
 
-# np.save('pows_highdim_noise', pows_highdim_noise)
-
-
-# In[91]:
-
-
-pows_highdim_noise
-
-
-# In[96]:
-
-
-np.mean(mi_list)
-
 
 # In[94]:
 
@@ -1472,6 +1458,75 @@ for i,test in enumerate(tests_str_exgmm):
     axes[0].plot(n_noise_list[:p_idx], pows_highdim_noise[:p_idx,i], label=test)
 axes[0].set_xlabel('Number of Noise Covariates')
 axes[0].set_ylabel('Power')
+axes[0].legend()
+
+rate_line, = axes[1].plot(n_noise_list[:p_idx], cover_rates[:p_idx], color='r', label='Signal Cover Rate')
+axes[1].set_ylabel('Signal Cover Rate')
+axes[1].set_xlabel('Number of Noise Covariates')
+ax2 = axes[1].twinx()
+m_box = ax2.boxplot(mi_list[:,:p_idx], positions=n_noise_list[:p_idx], patch_artist=True)
+ax2.set_ylabel('Chosen m')
+axes[1].legend([rate_line, m_box['boxes'][0]], ['Signal Cover Rate', 'Chosen m'])
+plt.show()
+
+
+# # Type I Error Rate Simulations
+
+# ## High Dimension with Noise
+
+
+# In[80]:
+
+
+points = 8
+n_samples_c = 3000
+n_samples_t = [3000] * 2
+n_true = 5
+tests_str = ['t','F','CUPED','GMM score','TAB_CUPED']
+level = 0.05
+n_reps = 5000
+n_core = 6
+
+n_noise_list = np.linspace(0, 30, points, dtype=int)
+
+if 'GMM' in tests_str:
+    i_ex = tests_str.index('GMM')
+    tests_str_exgmm = tests_str[:i_ex] + ['GMM score', 'GMM LR'] + tests_str[i_ex+1:]
+else:
+    tests_str_exgmm = tests_str
+
+errs_highdim_noise = np.empty([points, len(tests_str_exgmm)])
+cover_rates = np.empty(points)
+mi_list = np.empty([n_reps, points])
+for i,n_noise in enumerate(tqdm(n_noise_list)):
+    cdg = ClinicalDataGenerator(
+        alpha = (('constant',0), ('constant',0)),
+        X = (('normal', np.zeros(n_true+n_noise), 1), ),
+        beta = (('constant', [1]*n_true), ('constant', [0]*n_noise), ), 
+        epsilon = (('normal',0,1), )*3
+    )
+    if __name__ == '__main__':
+        with Pool(processes=n_core) as pool:
+            errs_highdim_noise[i,:], cover_rates[i], mi_list[:,i] = power(
+                cdg, n_samples_c, n_samples_t, n_samples_c, n_samples_t,
+                tests_str=tests_str, max_m=1+n_true+n_noise//2, lam=0.0,
+                level=level, n_reps=n_reps, pool=pool
+            )
+            pool.close()
+            pool.join()
+
+
+# In[81]:
+
+
+p_idx = points+1
+p_idx = 7
+fig, axes = plt.subplots(2,1, figsize=(15,10))
+for i,test in enumerate(tests_str_exgmm):
+    axes[0].plot(n_noise_list[:p_idx], errs_highdim_noise[:p_idx,i], label=test)
+axes[0].axhline(level, color='b', linestyle='--')
+axes[0].set_xlabel('Number of Noise Covariates')
+axes[0].set_ylabel('Type I Error Rate')
 axes[0].legend()
 
 rate_line, = axes[1].plot(n_noise_list[:p_idx], cover_rates[:p_idx], color='r', label='Signal Cover Rate')
