@@ -144,7 +144,7 @@ def TAB_CUPED(XAA: np.ndarray, YAA: np.ndarray,
             thetaAA = np.linalg.lstsq(AAA,bAA, rcond=None)[0]
 
         residualAA = YAA - XAA_.dot(thetaAA)
-        inv_varAA = np.ones(nAA)inv_varAA = np.ones(nAA)
+        inv_varAA = np.ones(nAA)
         for j in range(n_groups):
             inv_varAA[groupAA_idx == j] =                 1 / residualAA[groupAA_idx == j].var()
         
